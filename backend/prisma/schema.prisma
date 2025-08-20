@@ -1,0 +1,225 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Pemasok {
+  id           String   @id @default(cuid())
+  kode         String   @unique
+  nama         String
+  alamat       String?
+  telepon      String?
+  email        String?
+  kontak       String?
+  status       String   @default("aktif") // aktif, nonaktif
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  transaksiTimbang TransaksiTimbang[]
+  pendingTimbang   PendingTimbang[]
+  
+  @@map("pemasok")
+}
+
+model Sopir {
+  id           String   @id @default(cuid())
+  nama         String
+  noKtp        String   @unique
+  noSim        String?
+  telepon      String?
+  alamat       String?
+  status       String   @default("aktif") // aktif, nonaktif
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  transaksiTimbang TransaksiTimbang[]
+  pendingTimbang   PendingTimbang[]
+  
+  @@map("sopir")
+}
+
+model Kendaraan {
+  id           String   @id @default(cuid())
+  nopol        String   @unique
+  jenis        String   // truk, pickup, dll
+  kapasitas    Float?   // dalam ton
+  merk         String?
+  tahun        Int?
+  status       String   @default("aktif") // aktif, nonaktif
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  transaksiTimbang TransaksiTimbang[]
+  pendingTimbang   PendingTimbang[]
+  
+  @@map("kendaraan")
+}
+
+model TransaksiTimbang {
+  id           String   @id @default(cuid())
+  nomorTiket   String?  @unique // Auto-generated ticket number
+  nomorDo      String   @unique
+  tanggal      DateTime @default(now())
+  companyCode  String   // Company code from profile
+  pemasokId    String
+  sopirId      String
+  kendaraanId  String
+  jenisBarang  String   @default("TBS") // TBS, CPO, Kernel, PKE, Cangkang, dll
+  beratBruto   Float    // dalam kg
+  beratTara    Float    // dalam kg
+  beratNetto   Float    // otomatis dihitung
+  keterangan   String?
+  status       String   @default("aktif") // aktif, batal
+  userId       String?  // user yang input
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  pemasok      Pemasok   @relation(fields: [pemasokId], references: [id])
+  sopir        Sopir     @relation(fields: [sopirId], references: [id])
+  kendaraan    Kendaraan @relation(fields: [kendaraanId], references: [id])
+  user         User?     @relation(fields: [userId], references: [id])
+  grading      Grading?
+  
+  @@map("transaksi_timbang")
+}
+
+model Grading {
+  id                String   @id @default(cuid())
+  transaksiTimbangId String   @unique
+  companyCode       String   // Company code from profile
+  totalSample       Float    // dalam kg
+  buahMatang        Float    // persentase
+  buahMentah        Float    // persentase  
+  buahBusuk         Float    // persentase
+  brondolan         Float    // persentase
+  sampah            Float    // persentase
+  air               Float    // persentase
+  nilaiGrading      String?  // A, B, C, D berdasarkan standar
+  keterangan        String?
+  userId            String?  // user yang input
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  transaksiTimbang  TransaksiTimbang @relation(fields: [transaksiTimbangId], references: [id])
+  user              User?            @relation(fields: [userId], references: [id])
+  
+  @@map("grading")
+}
+
+model PendingTimbang {
+  id           String   @id @default(cuid())
+  nomorDo      String   @unique
+  tanggal      DateTime @default(now())
+  companyCode  String   // Company code from profile
+  pemasokId    String
+  sopirId      String
+  kendaraanId  String
+  jenisBarang  String   @default("TBS") // TBS, CPO, Kernel, PKE, Cangkang, dll
+  beratBruto   Float    // dalam kg - berat masuk
+  beratTara    Float?   // dalam kg - berat keluar (null jika belum keluar)
+  keterangan   String?
+  status       String   @default("masuk") // masuk, keluar, selesai
+  userId       String?  // user yang input
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  pemasok      Pemasok   @relation(fields: [pemasokId], references: [id])
+  sopir        Sopir     @relation(fields: [sopirId], references: [id])
+  kendaraan    Kendaraan @relation(fields: [kendaraanId], references: [id])
+  user         User?     @relation(fields: [userId], references: [id])
+  
+  @@map("pending_timbang")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // admin, operator_timbangan, operator_grading, supervisor
+  description String?
+  permissions String?  // JSON string array of permission strings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  userRoles   UserRole[]
+  
+  @@map("roles")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  username    String   @unique
+  email       String?  @unique
+  password    String   // hashed password
+  fullName    String
+  isActive    Boolean  @default(true)
+  lastLogin   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations - Changed to optional single role
+  userRole           UserRole?
+  transaksiTimbang   TransaksiTimbang[]
+  grading            Grading[]
+  pendingTimbang     PendingTimbang[]
+  
+  @@map("users")
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String @unique // This enforces one role per user at database level
+  roleId String
+  
+  // Relations
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  @@map("user_roles")
+}
+
+model Company {
+  id              String   @id @default(cuid())
+  companyCode     String   @unique // Unique company code for transactions
+  name            String   // Company name
+  businessName    String?  // Official business name (if different)
+  address         String?  // Company address
+  phone           String?  // Primary phone number
+  email           String?  // Company email
+  website         String?  // Company website
+  taxId           String?  // Tax identification number (NPWP)
+  businessLicense String?  // Business license number
+  industry        String?  // Industry type
+  established     DateTime? // Date established
+  description     String?  // Company description
+  logo            String?  // Logo file path or URL
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("companies")
+}
+
+model TicketCounter {
+  id            String   @id @default(cuid())
+  companyCode   String   
+  year          Int      
+  lastNumber    Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([companyCode, year])
+  @@map("ticket_counters")
+}
